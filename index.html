@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GitHub Actions CI/CD Classroom Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>GitHub Actions CI/CD Demo</h1>
+      <p>
+        Use this tiny app to demonstrate the full lifecycle: pull request checks
+        (CI) before merge, and automatic deployment (CD) after merge.
+      </p>
+
+      <section class="card" aria-label="Pass rate calculator">
+        <h2>Pass Rate Calculator</h2>
+        <p class="hint">
+          This function is unit-tested in CI, so a small math bug can block merge.
+        </p>
+
+        <div class="grid">
+          <label for="passed">Passed</label>
+          <input id="passed" type="number" min="0" value="2" />
+
+          <label for="total">Total</label>
+          <input id="total" type="number" min="1" value="4" />
+        </div>
+
+        <button id="calculate" type="button">Calculate</button>
+        <p id="result" class="result" role="status" aria-live="polite"></p>
+      </section>
+
+      <footer>
+        <p>
+          Deployed commit: <code id="commit">__COMMIT_SHA__</code>
+        </p>
+      </footer>
+    </main>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

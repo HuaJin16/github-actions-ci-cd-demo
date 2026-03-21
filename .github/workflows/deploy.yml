@@ -1,0 +1,114 @@
+name: CD - Deploy to DigitalOcean
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      reason: ${{ steps.check.outputs.reason }}
+
+    steps:
+      - name: Check deployment conditions
+        id: check
+        env:
+          DO_APP_ID: ${{ secrets.DO_APP_ID }}
+          DO_API_TOKEN: ${{ secrets.DO_API_TOKEN }}
+          CANONICAL_REPO: ${{ vars.CANONICAL_REPO }}
+        run: |
+          target_repo="${CANONICAL_REPO:-${GITHUB_REPOSITORY}}"
+
+          if [ "$GITHUB_REPOSITORY" != "$target_repo" ]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Repository is not the canonical deploy repo ($target_repo)." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "$DO_APP_ID" ] || [ -z "$DO_API_TOKEN" ]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Missing DO_APP_ID or DO_API_TOKEN secret." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          echo "reason=All deployment checks passed." >> "$GITHUB_OUTPUT"
+
+      - name: Write preflight summary
+        run: |
+          echo "### Deployment Preflight" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Should deploy: ${{ steps.check.outputs.should_deploy }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Reason: ${{ steps.check.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: preflight
+    if: needs.preflight.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    env:
+      DO_APP_ID: ${{ secrets.DO_APP_ID }}
+      DO_APP_URL: ${{ vars.DO_APP_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify build output
+        run: npm run verify:dist
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_API_TOKEN }}
+
+      - name: Trigger App Platform deployment
+        run: doctl apps create-deployment "$DO_APP_ID" --wait
+
+      - name: Write deployment summary
+        run: |
+          echo "### Deployment Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${GITHUB_SHA::7}" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$DO_APP_URL" ]; then
+            echo "- URL: $DO_APP_URL" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- URL: Set repository variable DO_APP_URL to display the live site link here." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  skipped:
+    needs: preflight
+    if: needs.preflight.outputs.should_deploy != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Write skipped summary
+        run: |
+          echo "### Deployment Skipped" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Reason: ${{ needs.preflight.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
