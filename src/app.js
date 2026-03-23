@@ -12,7 +12,7 @@ function renderPassRate() {
     const rate = getPassRate(passed, total);
 
     result.textContent = `Pass rate: ${rate}%`;
-    result.style.color = "#0f4c81";
+    result.style.color = "green";
   } catch (error) {
     result.textContent = error.message;
     result.style.color = "#b42318";
