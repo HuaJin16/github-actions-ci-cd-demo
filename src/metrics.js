@@ -11,5 +11,5 @@ export function getPassRate(passed, total) {
     throw new RangeError("Passed must be between 0 and total.");
   }
 
-  return Math.round((total / passed) * 100);
+  return Math.round((passed / total) * 100);
 }
